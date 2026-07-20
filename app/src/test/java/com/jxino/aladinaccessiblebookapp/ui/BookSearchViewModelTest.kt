@@ -19,52 +19,125 @@ class BookSearchViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `api key missing changes ui state`() = runTest {
-        val viewModel = createViewModel(BookSearchResponse.Failure(BookSearchError.ApiKeyMissing))
+    fun `speech text searches extracted title automatically`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("채식주의자"))))
+        val viewModel = createViewModel(fakeRepository)
 
-        viewModel.onSpeechText("채식주의자 찾아줘")
+        viewModel.onSpeechText("한강 작가 채식주의자 검색해줘")
 
-        assertEquals(BookSearchUiState.ApiKeyMissing, viewModel.uiState.value)
-    }
-
-    @Test
-    fun `search success shows ebook results`() = runTest {
-        val viewModel = createViewModel(BookSearchResponse.Success(listOf(sampleResult())))
-
-        viewModel.onSpeechText("채식주의자 찾아줘")
-
+        assertEquals("채식주의자", fakeRepository.lastQuery)
         val state = viewModel.uiState.value
         assertTrue(state is BookSearchUiState.Results)
         assertEquals("채식주의자", (state as BookSearchUiState.Results).query)
-        assertEquals(1, state.results.size)
     }
 
     @Test
-    fun `select result opens webview screen`() = runTest {
-        val viewModel = createViewModel(BookSearchResponse.Success(listOf(sampleResult())))
-        viewModel.onSpeechText("채식주의자 찾아줘")
+    fun `speech text searches title from plain search command`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("채식주의자"))))
+        val viewModel = createViewModel(fakeRepository)
 
-        viewModel.onSpeechText("1번 선택")
+        viewModel.onSpeechText("채식주의자 검색")
 
-        assertTrue(viewModel.screen.value is AppScreen.WebView)
+        assertEquals("채식주의자", fakeRepository.lastQuery)
     }
 
-    private fun createViewModel(response: BookSearchResponse): BookSearchViewModel =
+    @Test
+    fun `speech text searches title from attached search command`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("채식주의자"))))
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("채식주의자검색해줘")
+
+        assertEquals("채식주의자", fakeRepository.lastQuery)
+    }
+
+    @Test
+    fun `speech text searches title only when author is inferred`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("채식주의자"))))
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("채식주의자 한강 검색해줘")
+
+        assertEquals("채식주의자", fakeRepository.lastQuery)
+    }
+
+    @Test
+    fun `speech text searches title only when author comes before title`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("채식주의자"))))
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("한강 채식주의자 검색해줘")
+
+        assertEquals("채식주의자", fakeRepository.lastQuery)
+    }
+
+    @Test
+    fun `speech text searches title from natural phrase without search word`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("채식주의자"))))
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("채식주의자 한강")
+
+        assertEquals("채식주의자", fakeRepository.lastQuery)
+    }
+
+    @Test
+    fun `search shows all returned ebook results`() = runTest {
+        val fakeRepository = CapturingBookRepository(
+            BookSearchResponse.Success(
+                listOf(
+                    sampleResult("채식주의자"),
+                    sampleResult("한강, 채식주의자 깊게 읽기"),
+                    sampleResult("해방촌의 채식주의자"),
+                ),
+            ),
+        )
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("채식주의자 검색해줘")
+
+        val state = viewModel.uiState.value
+        assertTrue(state is BookSearchUiState.Results)
+        assertEquals(3, (state as BookSearchUiState.Results).results.size)
+    }
+
+    @Test
+    fun `internet unavailable changes ui state`() = runTest {
+        val fakeRepository = CapturingBookRepository(
+            BookSearchResponse.Failure(BookSearchError.InternetUnavailable),
+        )
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("채식주의자 검색해줘")
+
+        assertEquals(BookSearchUiState.InternetUnavailable, viewModel.uiState.value)
+    }
+
+    private fun createViewModel(repository: BookRepository): BookSearchViewModel =
         BookSearchViewModel(
-            repository = object : BookRepository {
-                override suspend fun searchEbooks(query: String): BookSearchResponse = response
-            },
+            repository = repository,
             parser = RuleBasedUserUtteranceParser(),
             announcer = BasicResultAnnouncer(),
         )
 
-    private fun sampleResult() = BookSearchResult(
-        title = "채식주의자",
+    private class CapturingBookRepository(
+        private val response: BookSearchResponse,
+    ) : BookRepository {
+        var lastQuery: String? = null
+
+        override suspend fun searchEbooks(query: String): BookSearchResponse {
+            lastQuery = query
+            return response
+        }
+    }
+
+    private fun sampleResult(title: String) = BookSearchResult(
+        title = title,
         author = "한강",
         publisher = "창비",
-        priceSales = 13500,
-        priceStandard = 15000,
-        link = "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=1",
+        priceSales = 13600,
+        priceStandard = 16000,
+        link = "https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=385408193",
         isbn = "123",
         isbn13 = "1234567890123",
         mallType = "EBOOK",

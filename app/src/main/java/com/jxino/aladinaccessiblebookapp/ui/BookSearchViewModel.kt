@@ -53,6 +53,10 @@ class BookSearchViewModel(
                 resultTitles = currentResults.map { it.title },
             ),
         )
+        if (command is ParsedCommand.Search) {
+            search(command.criteria.title)
+            return
+        }
         handleCommand(command)
     }
 
@@ -77,7 +81,7 @@ class BookSearchViewModel(
 
     private fun handleCommand(command: ParsedCommand) {
         when (command) {
-            is ParsedCommand.Search -> search(command.query)
+            is ParsedCommand.Search -> search(command.criteria.title)
             is ParsedCommand.SelectResult -> selectByIndex(command.index)
             is ParsedCommand.SelectByTitle -> selectByTitle(command.titleKeyword)
             ParsedCommand.Unknown -> {
@@ -88,22 +92,31 @@ class BookSearchViewModel(
     }
 
     private fun search(query: String) {
-        lastQuery = query
+        val title = query.trim()
+        if (title.isBlank()) {
+            _uiState.value = BookSearchUiState.SpeechNotRecognized("검색할 책 제목을 찾지 못했습니다. 다시 말씀해 주세요.")
+            speakErrorIfAvailable()
+            return
+        }
+        lastQuery = title
         viewModelScope.launch {
             _uiState.value = BookSearchUiState.Searching
-            when (val response = repository.searchEbooks(query)) {
+            when (val response = repository.searchEbooks(title)) {
                 is BookSearchResponse.Success -> {
-                    currentResults = response.results.take(5)
+                    currentResults = response.results
                     _uiState.value = if (currentResults.isEmpty()) {
                         BookSearchUiState.NoResults
                     } else {
-                        BookSearchUiState.Results(query, currentResults)
+                        BookSearchUiState.Results(title, currentResults)
                     }
                     if (currentResults.isEmpty()) speakErrorIfAvailable() else speak(announcer.buildSearchResultsAnnouncement(currentResults))
                 }
                 is BookSearchResponse.Failure -> {
                     _uiState.value = when (val error = response.error) {
                         BookSearchError.ApiKeyMissing -> BookSearchUiState.ApiKeyMissing
+                        BookSearchError.InternetUnavailable -> BookSearchUiState.InternetUnavailable
+                        is BookSearchError.AladinApiUnavailable -> BookSearchUiState.AladinApiUnavailable(error.message)
+                        is BookSearchError.InvalidApiResponse -> BookSearchUiState.InvalidApiResponse(error.message)
                         is BookSearchError.Network -> BookSearchUiState.NetworkError(error.message)
                     }
                     speakErrorIfAvailable()

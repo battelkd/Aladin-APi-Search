@@ -149,8 +149,11 @@ private fun StatusText(uiState: BookSearchUiState, hasAudioPermission: Boolean) 
         is BookSearchUiState.SpeechNotRecognized -> uiState.message
         BookSearchUiState.Searching -> "알라딘에서 전자책을 검색 중입니다."
         is BookSearchUiState.Results -> "\"${uiState.query}\" 전자책 검색 결과입니다."
-        BookSearchUiState.NoResults -> "전자책 검색 결과가 없습니다."
-        BookSearchUiState.ApiKeyMissing -> "알라딘 API 키가 설정되지 않았습니다"
+        BookSearchUiState.NoResults -> "해당 제목의 전자책 검색 결과가 없습니다. 다른 책 제목으로 다시 말씀해 주세요."
+        BookSearchUiState.ApiKeyMissing -> "알라딘 API 키가 설정되지 않았습니다."
+        BookSearchUiState.InternetUnavailable -> "인터넷 연결을 확인해 주세요."
+        is BookSearchUiState.AladinApiUnavailable -> "알라딘 API에 연결할 수 없습니다. ${uiState.message}"
+        is BookSearchUiState.InvalidApiResponse -> "알라딘 API 응답을 처리하지 못했습니다. ${uiState.message}"
         is BookSearchUiState.NetworkError -> "네트워크 오류: ${uiState.message}"
         BookSearchUiState.AmbiguousSelection -> "몇 번을 선택할지 다시 말씀해 주세요."
         BookSearchUiState.WebViewLoading -> "알라딘 페이지를 불러오는 중입니다."
@@ -198,7 +201,8 @@ private fun SearchResultItem(
     onResultClicked: (BookSearchResult) -> Unit,
 ) {
     val price = NumberFormat.getNumberInstance(Locale.KOREA).format(result.priceSales)
-    val description = "${index + 1}번. 제목 ${result.title}. 저자 ${result.author}. 출판사 ${result.publisher}. 가격 ${price}원."
+    val link = result.link.orEmpty()
+    val description = "${index + 1}번. 제목 ${result.title}. 저자 ${result.author}. 출판사 ${result.publisher}. 가격 ${price}원. 알라딘 링크 $link."
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -214,6 +218,7 @@ private fun SearchResultItem(
             Text("저자 ${result.author.ifBlank { "정보 없음" }}", fontSize = 21.sp, lineHeight = 28.sp)
             Text("출판사 ${result.publisher.ifBlank { "정보 없음" }}", fontSize = 21.sp, lineHeight = 28.sp)
             Text("가격 ${price}원", fontSize = 21.sp, lineHeight = 28.sp)
+            Text("알라딘 링크 ${link.ifBlank { "정보 없음" }}", fontSize = 18.sp, lineHeight = 24.sp)
         }
     }
 }

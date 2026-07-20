@@ -1,4 +1,4 @@
-# 알라딘 API 검색 보조 앱
+# Aladin Accessible Book App
 
 Voice-first accessible ebook search app using Aladin Open API and Android WebView.
 

@@ -8,10 +8,10 @@ interface AladinApiService {
     suspend fun searchEbooks(
         @Query("ttbkey") ttbKey: String,
         @Query("Query") query: String,
-        @Query("QueryType") queryType: String = "Keyword",
+        @Query("QueryType") queryType: String = "Title",
         @Query("SearchTarget") searchTarget: String = "eBook",
         @Query("Start") start: Int = 1,
-        @Query("MaxResults") maxResults: Int = 5,
+        @Query("MaxResults") maxResults: Int = 10,
         @Query("Sort") sort: String = "Accuracy",
         @Query("Cover") cover: String = "MidBig",
         @Query("Output") output: String = "JS",

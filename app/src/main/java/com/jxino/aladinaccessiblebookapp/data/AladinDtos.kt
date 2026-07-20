@@ -1,9 +1,12 @@
 package com.jxino.aladinaccessiblebookapp.data
 
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 
 data class AladinSearchResponse(
     @SerializedName("item") val item: List<AladinItem> = emptyList(),
+    @SerializedName("errorCode") val errorCode: String? = null,
+    @SerializedName("errorMessage") val errorMessage: String? = null,
 )
 
 data class AladinItem(
@@ -23,5 +26,5 @@ data class AladinItem(
 )
 
 data class AladinSubInfo(
-    @SerializedName("fileFormatList") val fileFormatList: List<String>? = null,
+    @SerializedName("fileFormatList") val fileFormatList: List<JsonElement>? = null,
 )

@@ -18,6 +18,7 @@ class SpeechRecognizerManager(
     private val appContext = context.applicationContext
     private var isListening = false
     private var lastPartialResult: String = ""
+    private var maxRmsDb = Float.NEGATIVE_INFINITY
     private val tag = "AladinSpeech"
 
     private val recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
@@ -31,7 +32,11 @@ class SpeechRecognizerManager(
                 Log.d(tag, "onBeginningOfSpeech")
             }
 
-            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onRmsChanged(rmsdB: Float) {
+                if (rmsdB > maxRmsDb) {
+                    maxRmsDb = rmsdB
+                }
+            }
             override fun onBufferReceived(buffer: ByteArray?) = Unit
 
             override fun onEndOfSpeech() {
@@ -51,8 +56,10 @@ class SpeechRecognizerManager(
             override fun onError(error: Int) {
                 isListening = false
                 val partial = lastPartialResult.trim()
+                val peakRms = maxRmsDb
                 lastPartialResult = ""
-                Log.d(tag, "onError code=$error partial=$partial")
+                maxRmsDb = Float.NEGATIVE_INFINITY
+                Log.d(tag, "onError code=$error partial=$partial peakRms=$peakRms")
                 if (error == SpeechRecognizer.ERROR_NO_MATCH && partial.isNotBlank()) {
                     onResult(partial)
                 } else {
@@ -64,8 +71,10 @@ class SpeechRecognizerManager(
                 isListening = false
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
                 val text = matches.firstOrNull().orEmpty().ifBlank { lastPartialResult }
+                val peakRms = maxRmsDb
                 lastPartialResult = ""
-                Log.d(tag, "onResults matches=$matches text=$text")
+                maxRmsDb = Float.NEGATIVE_INFINITY
+                Log.d(tag, "onResults matches=$matches text=$text peakRms=$peakRms")
                 if (text.isBlank()) {
                     onError(speechRecognitionFailureFor(SpeechRecognizer.ERROR_NO_MATCH))
                 } else {
@@ -77,9 +86,10 @@ class SpeechRecognizerManager(
 
     private val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.KOREAN.toLanguageTag())
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, Locale.KOREAN.toLanguageTag())
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.KOREA.toLanguageTag())
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, Locale.KOREA.toLanguageTag())
         putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, appContext.packageName)
@@ -103,6 +113,7 @@ class SpeechRecognizerManager(
         }
         isListening = true
         lastPartialResult = ""
+        maxRmsDb = Float.NEGATIVE_INFINITY
         Log.d(tag, "startListening")
         runCatching {
             recognizer.startListening(intent)
