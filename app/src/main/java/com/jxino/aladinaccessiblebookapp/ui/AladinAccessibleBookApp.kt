@@ -17,22 +17,17 @@ fun AladinAccessibleBookApp(
     onWebViewLoadingChanged: (Boolean) -> Unit,
 ) {
     AppTheme {
-        when (screen) {
-            AppScreen.VoiceSearch -> VoiceSearchScreen(
-                uiState = uiState,
-                hasAudioPermission = hasAudioPermission,
-                shouldOpenAppSettingsForAudio = shouldOpenAppSettingsForAudio,
-                onRequestPermission = onRequestPermission,
-                onStartListening = onStartListening,
-                onStopListening = onStopListening,
-                onResultClicked = onResultClicked,
-            )
-            is AppScreen.WebView -> WebViewScreen(
-                url = screen.url,
-                title = screen.title,
-                onBackToSearch = onBackToSearch,
-                onLoadingChanged = onWebViewLoadingChanged,
-            )
-        }
+        VoiceSearchScreen(
+            uiState = uiState,
+            screen = screen,
+            hasAudioPermission = hasAudioPermission,
+            shouldOpenAppSettingsForAudio = shouldOpenAppSettingsForAudio,
+            onRequestPermission = onRequestPermission,
+            onStartListening = onStartListening,
+            onStopListening = onStopListening,
+            onResultClicked = onResultClicked,
+            onBackToSearch = onBackToSearch,
+            onWebViewLoadingChanged = onWebViewLoadingChanged,
+        )
     }
 }

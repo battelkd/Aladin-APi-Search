@@ -6,9 +6,13 @@ import com.jxino.aladinaccessiblebookapp.data.BookRepository
 import com.jxino.aladinaccessiblebookapp.data.BookSearchError
 import com.jxino.aladinaccessiblebookapp.data.BookSearchResponse
 import com.jxino.aladinaccessiblebookapp.data.buildAladinSearchFallbackUrl
+import com.jxino.aladinaccessiblebookapp.domain.BookSearchEnhancer
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchResult
+import com.jxino.aladinaccessiblebookapp.domain.PassthroughBookSearchEnhancer
 import com.jxino.aladinaccessiblebookapp.domain.ParsedCommand
 import com.jxino.aladinaccessiblebookapp.domain.ResultAnnouncer
+import com.jxino.aladinaccessiblebookapp.domain.SearchResultEnhancementContext
+import com.jxino.aladinaccessiblebookapp.domain.SpeechCommandEnhancementContext
 import com.jxino.aladinaccessiblebookapp.domain.UserUtteranceParser
 import com.jxino.aladinaccessiblebookapp.domain.UtteranceContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,6 +27,7 @@ class BookSearchViewModel(
     private val repository: BookRepository,
     private val parser: UserUtteranceParser,
     private val announcer: ResultAnnouncer,
+    private val enhancer: BookSearchEnhancer = PassthroughBookSearchEnhancer(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<BookSearchUiState>(BookSearchUiState.Initial)
     val uiState: StateFlow<BookSearchUiState> = _uiState.asStateFlow()
@@ -46,18 +51,21 @@ class BookSearchViewModel(
     }
 
     fun onSpeechText(text: String) {
-        val command = parser.parse(
-            text = text,
-            context = UtteranceContext(
+        viewModelScope.launch {
+            val utteranceContext = UtteranceContext(
                 hasSearchResults = currentResults.isNotEmpty(),
                 resultTitles = currentResults.map { it.title },
-            ),
-        )
-        if (command is ParsedCommand.Search) {
-            search(command.criteria.title)
-            return
+            )
+            val parsedCommand = parser.parse(text = text, context = utteranceContext)
+            val command = enhanceParsedCommandSafely(
+                parsedCommand = parsedCommand,
+                context = SpeechCommandEnhancementContext(
+                    originalSpeechText = text,
+                    utteranceContext = utteranceContext,
+                ),
+            )
+            handleCommand(command, originalSpeechText = text)
         }
-        handleCommand(command)
     }
 
     fun onSpeechError(message: String = "음성을 인식하지 못했습니다. 다시 말씀해 주세요.") {
@@ -75,13 +83,14 @@ class BookSearchViewModel(
     }
 
     fun onWebViewLoadingChanged(isLoading: Boolean) {
+        if (_screen.value !is AppScreen.WebView) return
         _uiState.value = if (isLoading) BookSearchUiState.WebViewLoading else BookSearchUiState.WebViewLoaded
         if (isLoading) speak("알라딘 페이지를 불러오는 중입니다.")
     }
 
-    private fun handleCommand(command: ParsedCommand) {
+    private suspend fun handleCommand(command: ParsedCommand, originalSpeechText: String) {
         when (command) {
-            is ParsedCommand.Search -> search(command.criteria.title)
+            is ParsedCommand.Search -> search(command.criteria.title, originalSpeechText)
             is ParsedCommand.SelectResult -> selectByIndex(command.index)
             is ParsedCommand.SelectByTitle -> selectByTitle(command.titleKeyword)
             ParsedCommand.Unknown -> {
@@ -91,7 +100,7 @@ class BookSearchViewModel(
         }
     }
 
-    private fun search(query: String) {
+    private suspend fun search(query: String, originalSpeechText: String) {
         val title = query.trim()
         if (title.isBlank()) {
             _uiState.value = BookSearchUiState.SpeechNotRecognized("검색할 책 제목을 찾지 못했습니다. 다시 말씀해 주세요.")
@@ -99,31 +108,56 @@ class BookSearchViewModel(
             return
         }
         lastQuery = title
-        viewModelScope.launch {
-            _uiState.value = BookSearchUiState.Searching
-            when (val response = repository.searchEbooks(title)) {
-                is BookSearchResponse.Success -> {
-                    currentResults = response.results
-                    _uiState.value = if (currentResults.isEmpty()) {
-                        BookSearchUiState.NoResults
-                    } else {
-                        BookSearchUiState.Results(title, currentResults)
-                    }
-                    if (currentResults.isEmpty()) speakErrorIfAvailable() else speak(announcer.buildSearchResultsAnnouncement(currentResults))
+        _uiState.value = BookSearchUiState.Searching
+        when (val response = repository.searchEbooks(title)) {
+            is BookSearchResponse.Success -> {
+                currentResults = enhanceSearchResultsSafely(
+                    results = response.results,
+                    context = SearchResultEnhancementContext(
+                        originalSpeechText = originalSpeechText,
+                        requestedTitle = title,
+                        resultsBeforeEnhancement = response.results,
+                    ),
+                ).take(MAX_VISIBLE_RESULTS)
+                _uiState.value = if (currentResults.isEmpty()) {
+                    BookSearchUiState.NoResults
+                } else {
+                    BookSearchUiState.Results(title, currentResults)
                 }
-                is BookSearchResponse.Failure -> {
-                    _uiState.value = when (val error = response.error) {
-                        BookSearchError.ApiKeyMissing -> BookSearchUiState.ApiKeyMissing
-                        BookSearchError.InternetUnavailable -> BookSearchUiState.InternetUnavailable
-                        is BookSearchError.AladinApiUnavailable -> BookSearchUiState.AladinApiUnavailable(error.message)
-                        is BookSearchError.InvalidApiResponse -> BookSearchUiState.InvalidApiResponse(error.message)
-                        is BookSearchError.Network -> BookSearchUiState.NetworkError(error.message)
-                    }
-                    speakErrorIfAvailable()
+                if (currentResults.isEmpty()) speakErrorIfAvailable() else speak(announcer.buildSearchResultsAnnouncement(currentResults))
+            }
+            is BookSearchResponse.Failure -> {
+                _uiState.value = when (val error = response.error) {
+                    BookSearchError.ApiKeyMissing -> BookSearchUiState.ApiKeyMissing
+                    BookSearchError.InternetUnavailable -> BookSearchUiState.InternetUnavailable
+                    is BookSearchError.AladinApiUnavailable -> BookSearchUiState.AladinApiUnavailable(error.message)
+                    is BookSearchError.InvalidApiResponse -> BookSearchUiState.InvalidApiResponse(error.message)
+                    is BookSearchError.Network -> BookSearchUiState.NetworkError(error.message)
                 }
+                speakErrorIfAvailable()
             }
         }
     }
+
+    private suspend fun enhanceParsedCommandSafely(
+        parsedCommand: ParsedCommand,
+        context: SpeechCommandEnhancementContext,
+    ): ParsedCommand =
+        runCatching {
+            enhancer.enhanceParsedCommand(parsedCommand, context)
+        }.getOrElse {
+            parsedCommand
+        }
+
+    private suspend fun enhanceSearchResultsSafely(
+        results: List<BookSearchResult>,
+        context: SearchResultEnhancementContext,
+    ): List<BookSearchResult> =
+        runCatching {
+            enhancer.enhanceSearchResults(results, context)
+        }.getOrElse {
+            results
+        }
 
     private fun selectByIndex(index: Int) {
         val result = currentResults.getOrNull(index)
@@ -163,5 +197,9 @@ class BookSearchViewModel(
 
     private fun speak(message: String) {
         _ttsEvents.tryEmit(message)
+    }
+
+    private companion object {
+        const val MAX_VISIBLE_RESULTS = 5
     }
 }

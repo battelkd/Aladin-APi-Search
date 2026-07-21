@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
                 },
                 onStartListening = {
                     if (hasAudioPermission) {
+                        ttsManager.stop()
                         viewModel.onListeningStarted()
                         speechManager.startListening()
                     } else {

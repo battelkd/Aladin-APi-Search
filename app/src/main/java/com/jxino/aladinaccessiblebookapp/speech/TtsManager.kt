@@ -10,17 +10,23 @@ class TtsManager(context: Context) {
 
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
-        ready = status == TextToSpeech.SUCCESS
-        if (ready) {
-            tts.language = Locale.KOREAN
+            ready = status == TextToSpeech.SUCCESS
+            if (ready) {
+                tts.language = Locale.KOREAN
+            }
         }
-    }
     }
 
     fun speak(message: String) {
         if (message.isBlank()) return
         if (ready) {
             tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, "aladin-accessible-book-tts")
+        }
+    }
+
+    fun stop() {
+        if (ready) {
+            tts.stop()
         }
     }
 

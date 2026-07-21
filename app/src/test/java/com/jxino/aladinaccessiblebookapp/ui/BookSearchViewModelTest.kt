@@ -4,8 +4,13 @@ import com.jxino.aladinaccessiblebookapp.data.BookRepository
 import com.jxino.aladinaccessiblebookapp.data.BookSearchError
 import com.jxino.aladinaccessiblebookapp.data.BookSearchResponse
 import com.jxino.aladinaccessiblebookapp.domain.BasicResultAnnouncer
+import com.jxino.aladinaccessiblebookapp.domain.BookSearchCriteria
+import com.jxino.aladinaccessiblebookapp.domain.BookSearchEnhancer
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchResult
+import com.jxino.aladinaccessiblebookapp.domain.ParsedCommand
 import com.jxino.aladinaccessiblebookapp.domain.RuleBasedUserUtteranceParser
+import com.jxino.aladinaccessiblebookapp.domain.SearchResultEnhancementContext
+import com.jxino.aladinaccessiblebookapp.domain.SpeechCommandEnhancementContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -102,6 +107,24 @@ class BookSearchViewModelTest {
     }
 
     @Test
+    fun `search limits visible results to five`() = runTest {
+        val fakeRepository = CapturingBookRepository(
+            BookSearchResponse.Success(
+                (1..6).map { sampleResult("검색 결과 $it") },
+            ),
+        )
+        val viewModel = createViewModel(fakeRepository)
+
+        viewModel.onSpeechText("채식주의자 검색해줘")
+
+        val state = viewModel.uiState.value
+        assertTrue(state is BookSearchUiState.Results)
+        val results = (state as BookSearchUiState.Results).results
+        assertEquals(5, results.size)
+        assertEquals("검색 결과 5", results.last().title)
+    }
+
+    @Test
     fun `internet unavailable changes ui state`() = runTest {
         val fakeRepository = CapturingBookRepository(
             BookSearchResponse.Failure(BookSearchError.InternetUnavailable),
@@ -113,11 +136,60 @@ class BookSearchViewModelTest {
         assertEquals(BookSearchUiState.InternetUnavailable, viewModel.uiState.value)
     }
 
-    private fun createViewModel(repository: BookRepository): BookSearchViewModel =
+    @Test
+    fun `enhancer can rewrite parsed search command before repository search`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(listOf(sampleResult("소년이 온다"))))
+        val viewModel = createViewModel(
+            repository = fakeRepository,
+            enhancer = RewritingSearchEnhancer(rewrittenTitle = "소년이 온다"),
+        )
+
+        viewModel.onSpeechText("채식주의자 검색해줘")
+
+        assertEquals("소년이 온다", fakeRepository.lastQuery)
+    }
+
+    @Test
+    fun `enhancer can transform api results before ui display`() = runTest {
+        val fakeRepository = CapturingBookRepository(
+            BookSearchResponse.Success(
+                listOf(
+                    sampleResult("채식주의자"),
+                    sampleResult("채식주의자 해설"),
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = fakeRepository,
+            enhancer = ResultFilteringEnhancer(titleToKeep = "채식주의자 해설"),
+        )
+
+        viewModel.onSpeechText("채식주의자 검색해줘")
+
+        val state = viewModel.uiState.value
+        assertTrue(state is BookSearchUiState.Results)
+        assertEquals(listOf("채식주의자 해설"), (state as BookSearchUiState.Results).results.map { it.title })
+    }
+
+    private fun createViewModel(
+        repository: BookRepository,
+        enhancer: BookSearchEnhancer = object : BookSearchEnhancer {
+            override suspend fun enhanceParsedCommand(
+                parsedCommand: ParsedCommand,
+                context: SpeechCommandEnhancementContext,
+            ): ParsedCommand = parsedCommand
+
+            override suspend fun enhanceSearchResults(
+                results: List<BookSearchResult>,
+                context: SearchResultEnhancementContext,
+            ): List<BookSearchResult> = results
+        },
+    ): BookSearchViewModel =
         BookSearchViewModel(
             repository = repository,
             parser = RuleBasedUserUtteranceParser(),
             announcer = BasicResultAnnouncer(),
+            enhancer = enhancer,
         )
 
     private class CapturingBookRepository(
@@ -129,6 +201,40 @@ class BookSearchViewModelTest {
             lastQuery = query
             return response
         }
+    }
+
+    private class RewritingSearchEnhancer(
+        private val rewrittenTitle: String,
+    ) : BookSearchEnhancer {
+        override suspend fun enhanceParsedCommand(
+            parsedCommand: ParsedCommand,
+            context: SpeechCommandEnhancementContext,
+        ): ParsedCommand =
+            if (parsedCommand is ParsedCommand.Search) {
+                ParsedCommand.Search(BookSearchCriteria(title = rewrittenTitle))
+            } else {
+                parsedCommand
+            }
+
+        override suspend fun enhanceSearchResults(
+            results: List<BookSearchResult>,
+            context: SearchResultEnhancementContext,
+        ): List<BookSearchResult> = results
+    }
+
+    private class ResultFilteringEnhancer(
+        private val titleToKeep: String,
+    ) : BookSearchEnhancer {
+        override suspend fun enhanceParsedCommand(
+            parsedCommand: ParsedCommand,
+            context: SpeechCommandEnhancementContext,
+        ): ParsedCommand = parsedCommand
+
+        override suspend fun enhanceSearchResults(
+            results: List<BookSearchResult>,
+            context: SearchResultEnhancementContext,
+        ): List<BookSearchResult> =
+            results.filter { it.title == titleToKeep }
     }
 
     private fun sampleResult(title: String) = BookSearchResult(

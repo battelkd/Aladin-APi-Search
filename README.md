@@ -2,17 +2,20 @@
 
 Voice-first accessible ebook search app using Aladin Open API and Android WebView.
 
+현재 버전: 0.2
+
 이 프로젝트는 시각 장애인이 음성으로 전자책을 검색하고, 알라딘 Open API 결과를 음성 안내로 확인한 뒤, 선택한 전자책의 알라딘 상품 페이지를 앱 내부 WebView에서 열 수 있도록 돕는 Android 전용 MVP입니다.
 
 ## 주요 기능
 
 - Android Native, Kotlin, Jetpack Compose 기반 UI
+- 상단 Android WebView와 하단 전체 영역 음성 버튼 기반 UI
 - Android `SpeechRecognizer` 기반 push-to-talk 음성 검색
 - Android `TextToSpeech` 기반 검색 결과 및 오류 안내
 - 알라딘 Open API `ItemSearch.aspx` 전자책 검색
 - `mallType == EBOOK` 응답 검증 필터링
-- 검색 결과 터치 선택 및 음성 번호/제목 선택
-- 앱 내부 WebView로 알라딘 상품 페이지 열기
+- 검색 결과 최대 5개를 WebView 위 오버레이로 표시
+- 검색 결과 터치 선택 및 음성 번호/제목 선택으로 알라딘 상품 페이지 열기
 - 향후 AI 구현체 교체를 위한 도메인 interface 구조
 
 ## 현재 구현 완료 범위
@@ -20,20 +23,22 @@ Voice-first accessible ebook search app using Aladin Open API and Android WebVie
 - Android 전용 앱 기본 구조 구현
 - Jetpack Compose 기반 UI 구현
 - 마이크 권한 요청 구조 구현
-- 화면 하단 중앙 부근의 대형 원형 push-to-talk 음성 버튼 구현
+- 상단 WebView와 하단 전체 버튼형 push-to-talk 화면 구현
 - Android SpeechRecognizer 기반 음성 인식 구현
+- 음성 인식 시작 시 진행 중인 TTS 중지 처리 구현
 - AI 없는 규칙 기반 사용자 발화 파싱 구현
 - `UserUtteranceParser`, `ParsedCommand`, `UtteranceContext` 기반 확장 구조 구현
+- `BookSearchEnhancer` 기반 AI 보강 확장 지점 구현
 - `ResultAnnouncer` 기반 검색 결과 안내 확장 구조 구현
 - `WebPageAssistant` 기반 WebView 상태 분석 확장 구조 구현
 - 알라딘 Open API `ItemSearch.aspx` 전자책 검색 연동 구조 구현
 - `SearchTarget=eBook`, `Output=JS`, `Version=20131101` 기반 요청 구현
 - `mallType == EBOOK` 응답 필터링 구현
 - API 키 미설정 시 “알라딘 API 키가 설정되지 않았습니다” 안내 처리 구현
-- 전자책 검색 결과 상위 5개 표시
+- 전자책 검색 결과 상위 5개를 WebView 위에 표시
 - TTS 검색 결과 안내
 - 검색 결과 터치/음성 선택 구조 구현
-- 앱 내부 WebView에서 알라딘 전자책 상품 페이지 열기
+- 선택한 전자책의 알라딘 상품 페이지를 상단 WebView에서 열기
 - 결제 자동화는 구현하지 않음
 
 ## 아직 구현하지 않은 범위
@@ -183,10 +188,11 @@ API 키가 없어도 음성 인식이 성공했는지 구분할 수 있습니다
 ## 향후 AI 확장을 위한 interface 설계
 
 - `UserUtteranceParser`: 음성 인식 텍스트와 `UtteranceContext`를 받아 `ParsedCommand`를 반환합니다.
+- `BookSearchEnhancer`: 파싱된 명령과 API 검색 결과를 화면 표시 전에 보강할 수 있는 중간 확장 지점입니다.
 - `ResultAnnouncer`: 알라딘 API에서 받은 `BookSearchResult` 목록을 기반으로 안내 문구를 생성합니다.
 - `WebPageAssistant`: WebView URL과 제목을 받아 `WebPageState`를 반환합니다.
 
-향후 `AiUserUtteranceParser`, `AiResultAnnouncer`, AI 기반 `WebPageAssistant`를 추가할 수 있지만, 결과 생성과 선택은 반드시 실제 API 결과를 기반으로 해야 합니다.
+향후 `AiUserUtteranceParser`, AI 기반 `BookSearchEnhancer`, `AiResultAnnouncer`, AI 기반 `WebPageAssistant`를 추가할 수 있지만, 결과 생성과 선택은 반드시 실제 API 결과를 기반으로 해야 합니다.
 
 ## 결제 자동화 제외 이유
 
