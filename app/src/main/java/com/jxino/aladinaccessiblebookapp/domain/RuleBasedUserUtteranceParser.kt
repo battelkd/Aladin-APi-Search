@@ -162,6 +162,13 @@ class RuleBasedUserUtteranceParser : UserUtteranceParser {
         val normalized = normalize(text)
         if (normalized.isBlank()) return ParsedCommand.Unknown
 
+        if (normalized.isAddToCartCommand()) {
+            return ParsedCommand.AddToCart
+        }
+        if (normalized.isGoToCartCommand()) {
+            return ParsedCommand.GoToCart
+        }
+
         val query = extractSearchQuery(normalized)
         val isSearchUtterance = query != normalized
         if (isSearchUtterance) {
@@ -524,6 +531,33 @@ class RuleBasedUserUtteranceParser : UserUtteranceParser {
 
     private fun String.hasSelectionIntent(): Boolean =
         split(" ").any { token -> selectionIntentTokens.any { intent -> token == intent || token.endsWith(intent) } }
+
+    private fun String.isAddToCartCommand(): Boolean {
+        val compact = replace(" ", "")
+        val cartTargets = listOf("장바구니", "바구니", "카트", "cart")
+        val addIntents = listOf("넣", "담아", "담기", "담어", "추가", "등록", "보관")
+        return cartTargets.any { compact.contains(it) } &&
+            addIntents.any { compact.contains(it) }
+    }
+
+    private fun String.isGoToCartCommand(): Boolean {
+        val compact = replace(" ", "")
+        val cartTargets = listOf("장바구니", "바구니", "카트", "cart")
+        val navigationIntents = listOf(
+            "보여",
+            "보기",
+            "열어",
+            "이동",
+            "가줘",
+            "가자",
+            "들어가",
+            "확인",
+            "페이지",
+            "목록",
+        )
+        return cartTargets.any { compact.contains(it) } &&
+            navigationIntents.any { compact.contains(it) }
+    }
 
     private fun normalize(value: String): String =
         value.lowercase()

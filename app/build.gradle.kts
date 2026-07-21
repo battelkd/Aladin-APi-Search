@@ -23,8 +23,8 @@ android {
         applicationId = "com.jxino.aladinaccessiblebookapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "ALADIN_TTB_KEY", "\"${aladinTtbKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

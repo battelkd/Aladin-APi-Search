@@ -8,6 +8,7 @@ import com.jxino.aladinaccessiblebookapp.data.BookSearchResponse
 import com.jxino.aladinaccessiblebookapp.data.buildAladinSearchFallbackUrl
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchEnhancer
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchResult
+import com.jxino.aladinaccessiblebookapp.domain.CartActionResult
 import com.jxino.aladinaccessiblebookapp.domain.PassthroughBookSearchEnhancer
 import com.jxino.aladinaccessiblebookapp.domain.ParsedCommand
 import com.jxino.aladinaccessiblebookapp.domain.ResultAnnouncer
@@ -37,6 +38,9 @@ class BookSearchViewModel(
 
     private val _ttsEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val ttsEvents: SharedFlow<String> = _ttsEvents.asSharedFlow()
+
+    private val _cartActionRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val cartActionRequests: SharedFlow<Unit> = _cartActionRequests.asSharedFlow()
 
     private var currentResults: List<BookSearchResult> = emptyList()
     private var lastQuery: String = ""
@@ -88,11 +92,26 @@ class BookSearchViewModel(
         if (isLoading) speak("알라딘 페이지를 불러오는 중입니다.")
     }
 
+    fun onCartActionResult(result: CartActionResult) {
+        val message = when (result) {
+            CartActionResult.Added -> "장바구니에 담았습니다."
+            CartActionResult.NotProductPage -> "현재 상품페이지가 아닙니다."
+            CartActionResult.ButtonMissing -> "장바구니 버튼이 없습니다, 다른 상품을 선택해 주세요."
+        }
+        _uiState.value = BookSearchUiState.CartActionMessage(
+            message = message,
+            isError = result != CartActionResult.Added,
+        )
+        speak(message)
+    }
+
     private suspend fun handleCommand(command: ParsedCommand, originalSpeechText: String) {
         when (command) {
             is ParsedCommand.Search -> search(command.criteria.title, originalSpeechText)
             is ParsedCommand.SelectResult -> selectByIndex(command.index)
             is ParsedCommand.SelectByTitle -> selectByTitle(command.titleKeyword)
+            ParsedCommand.AddToCart -> requestAddToCart()
+            ParsedCommand.GoToCart -> openCartPage()
             ParsedCommand.Unknown -> {
                 _uiState.value = BookSearchUiState.SpeechNotRecognized()
                 speak("명령을 이해하지 못했습니다. 검색어 또는 결과 번호를 다시 말씀해 주세요.")
@@ -191,6 +210,16 @@ class BookSearchViewModel(
         speak("${result.title} 알라딘 페이지를 엽니다.")
     }
 
+    private fun openCartPage() {
+        _screen.value = AppScreen.WebView(url = ALADIN_CART_URL, title = "장바구니")
+        _uiState.value = BookSearchUiState.WebViewLoading
+        speak("장바구니 페이지를 엽니다.")
+    }
+
+    private fun requestAddToCart() {
+        _cartActionRequests.tryEmit(Unit)
+    }
+
     private fun speakErrorIfAvailable() {
         announcer.buildErrorAnnouncement(_uiState.value)?.let(::speak)
     }
@@ -201,5 +230,6 @@ class BookSearchViewModel(
 
     private companion object {
         const val MAX_VISIBLE_RESULTS = 5
+        const val ALADIN_CART_URL = "https://www.aladin.co.kr/shop/wbasket.aspx"
     }
 }

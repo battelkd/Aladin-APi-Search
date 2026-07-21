@@ -23,7 +23,15 @@ sealed class ParsedCommand {
     data class Search(val criteria: BookSearchCriteria) : ParsedCommand()
     data class SelectResult(val index: Int) : ParsedCommand()
     data class SelectByTitle(val titleKeyword: String) : ParsedCommand()
+    data object AddToCart : ParsedCommand()
+    data object GoToCart : ParsedCommand()
     data object Unknown : ParsedCommand()
+}
+
+enum class CartActionResult {
+    Added,
+    NotProductPage,
+    ButtonMissing,
 }
 
 interface UserUtteranceParser {

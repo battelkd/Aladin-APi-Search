@@ -96,6 +96,7 @@ class MainActivity : ComponentActivity() {
             AladinAccessibleBookApp(
                 uiState = uiState,
                 screen = screen,
+                cartActionRequests = viewModel.cartActionRequests,
                 hasAudioPermission = hasAudioPermission,
                 shouldOpenAppSettingsForAudio = shouldOpenAppSettingsForAudio,
                 onRequestPermission = {
@@ -121,6 +122,7 @@ class MainActivity : ComponentActivity() {
                 onResultClicked = viewModel::onResultClicked,
                 onBackToSearch = viewModel::onBackToSearch,
                 onWebViewLoadingChanged = viewModel::onWebViewLoadingChanged,
+                onCartActionResult = viewModel::onCartActionResult,
             )
         }
     }

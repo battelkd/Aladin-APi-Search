@@ -7,11 +7,14 @@ import com.jxino.aladinaccessiblebookapp.domain.BasicResultAnnouncer
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchCriteria
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchEnhancer
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchResult
+import com.jxino.aladinaccessiblebookapp.domain.CartActionResult
 import com.jxino.aladinaccessiblebookapp.domain.ParsedCommand
 import com.jxino.aladinaccessiblebookapp.domain.RuleBasedUserUtteranceParser
 import com.jxino.aladinaccessiblebookapp.domain.SearchResultEnhancementContext
 import com.jxino.aladinaccessiblebookapp.domain.SpeechCommandEnhancementContext
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -169,6 +172,57 @@ class BookSearchViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state is BookSearchUiState.Results)
         assertEquals(listOf("채식주의자 해설"), (state as BookSearchUiState.Results).results.map { it.title })
+    }
+
+    @Test
+    fun `cart command emits webview cart action request`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(emptyList()))
+        val viewModel = createViewModel(fakeRepository)
+        val request = async { viewModel.cartActionRequests.first() }
+
+        viewModel.onSpeechText("장바구니에 넣어줘")
+
+        request.await()
+        assertEquals(null, fakeRepository.lastQuery)
+    }
+
+    @Test
+    fun `cart action results announce expected messages`() = runTest {
+        val cases = listOf(
+            CartActionResult.Added to BookSearchUiState.CartActionMessage("장바구니에 담았습니다."),
+            CartActionResult.NotProductPage to BookSearchUiState.CartActionMessage("현재 상품페이지가 아닙니다.", isError = true),
+            CartActionResult.ButtonMissing to BookSearchUiState.CartActionMessage(
+                "장바구니 버튼이 없습니다, 다른 상품을 선택해 주세요.",
+                isError = true,
+            ),
+        )
+
+        cases.forEach { (result, expectedState) ->
+            val viewModel = createViewModel(CapturingBookRepository(BookSearchResponse.Success(emptyList())))
+            val spoken = async { viewModel.ttsEvents.first() }
+
+            viewModel.onCartActionResult(result)
+
+            assertEquals(expectedState, viewModel.uiState.value)
+            assertEquals(expectedState.message, spoken.await())
+        }
+    }
+
+    @Test
+    fun `go to cart command opens aladin cart page`() = runTest {
+        val fakeRepository = CapturingBookRepository(BookSearchResponse.Success(emptyList()))
+        val viewModel = createViewModel(fakeRepository)
+        val spoken = async { viewModel.ttsEvents.first() }
+
+        viewModel.onSpeechText("장바구니 보여줘")
+
+        val screen = viewModel.screen.value
+        assertTrue(screen is AppScreen.WebView)
+        assertEquals("https://www.aladin.co.kr/shop/wbasket.aspx", (screen as AppScreen.WebView).url)
+        assertEquals("장바구니", screen.title)
+        assertEquals(BookSearchUiState.WebViewLoading, viewModel.uiState.value)
+        assertEquals("장바구니 페이지를 엽니다.", spoken.await())
+        assertEquals(null, fakeRepository.lastQuery)
     }
 
     private fun createViewModel(

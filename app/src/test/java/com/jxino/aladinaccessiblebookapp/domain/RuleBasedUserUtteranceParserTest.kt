@@ -175,6 +175,53 @@ class RuleBasedUserUtteranceParserTest {
         assertEquals(ParsedCommand.Search(BookSearchCriteria(title = "채식주의자")), command)
     }
 
+    @Test
+    fun `parses add to cart command variants`() {
+        val utterances = listOf(
+            "장바구니에 넣어줘",
+            "장바구니에 넣어",
+            "바구니에 넣어줘",
+            "장바구니 담아줘",
+            "장바구니에 담아줘",
+            "장바구니 추가해줘",
+            "카트에 넣어줘",
+            "이 책 장바구니에 담아줘",
+            "현재 책을 바구니에 추가해줘",
+        )
+
+        utterances.forEach { utterance ->
+            assertEquals(
+                utterance,
+                ParsedCommand.AddToCart,
+                parser.parse(utterance, resultsContext()),
+            )
+        }
+    }
+
+    @Test
+    fun `parses go to cart command variants`() {
+        val utterances = listOf(
+            "장바구니 보여줘",
+            "장바구니로 가줘",
+            "장바구니로 이동",
+            "장바구니 열어줘",
+            "바구니 보여줘",
+            "바구니로 이동해줘",
+            "카트 보여줘",
+            "장바구니 확인해줘",
+            "장바구니 페이지 열어줘",
+            "장바구니 목록 보여줘",
+        )
+
+        utterances.forEach { utterance ->
+            assertEquals(
+                utterance,
+                ParsedCommand.GoToCart,
+                parser.parse(utterance, resultsContext()),
+            )
+        }
+    }
+
     private fun emptyContext() = UtteranceContext(hasSearchResults = false, resultTitles = emptyList())
 
     private fun resultsContext() = UtteranceContext(

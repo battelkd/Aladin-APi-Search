@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,8 +50,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.jxino.aladinaccessiblebookapp.domain.BookSearchResult
+import com.jxino.aladinaccessiblebookapp.domain.CartActionResult
 import com.jxino.aladinaccessiblebookapp.domain.RuleBasedWebPageAssistant
 import com.jxino.aladinaccessiblebookapp.web.BookWebViewController
+import kotlinx.coroutines.flow.SharedFlow
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -61,6 +64,7 @@ private const val ALADIN_HOME_TITLE = "알라딘"
 fun VoiceSearchScreen(
     uiState: BookSearchUiState,
     screen: AppScreen,
+    cartActionRequests: SharedFlow<Unit>,
     hasAudioPermission: Boolean,
     shouldOpenAppSettingsForAudio: Boolean,
     onRequestPermission: () -> Unit,
@@ -69,6 +73,7 @@ fun VoiceSearchScreen(
     onResultClicked: (BookSearchResult) -> Unit,
     onBackToSearch: () -> Unit,
     onWebViewLoadingChanged: (Boolean) -> Unit,
+    onCartActionResult: (CartActionResult) -> Unit,
 ) {
     val webScreen = screen as? AppScreen.WebView
     val currentUrl = webScreen?.url ?: ALADIN_HOME_URL
@@ -80,6 +85,12 @@ fun VoiceSearchScreen(
             pageAssistant = RuleBasedWebPageAssistant(),
             onLoadingChanged = onWebViewLoadingChanged,
         )
+    }
+
+    LaunchedEffect(cartActionRequests, controller) {
+        cartActionRequests.collect {
+            controller.clickCartButton(webView, onCartActionResult)
+        }
     }
 
     BackHandler(enabled = webScreen != null) {
@@ -230,7 +241,8 @@ private fun StatusBanner(
         uiState == BookSearchUiState.InternetUnavailable ||
         uiState == BookSearchUiState.PermissionDenied ||
         uiState == BookSearchUiState.NoResults ||
-        uiState == BookSearchUiState.AmbiguousSelection
+        uiState == BookSearchUiState.AmbiguousSelection ||
+        (uiState is BookSearchUiState.CartActionMessage && uiState.isError)
 
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -275,6 +287,7 @@ private fun statusMessage(uiState: BookSearchUiState, hasAudioPermission: Boolea
         BookSearchUiState.AmbiguousSelection -> "몇 번을 선택할지 다시 말씀해 주세요."
         BookSearchUiState.WebViewLoading -> "알라딘 페이지를 불러오는 중입니다."
         BookSearchUiState.WebViewLoaded -> "알라딘 페이지 로딩이 완료되었습니다."
+        is BookSearchUiState.CartActionMessage -> uiState.message
     }
 
 @Composable

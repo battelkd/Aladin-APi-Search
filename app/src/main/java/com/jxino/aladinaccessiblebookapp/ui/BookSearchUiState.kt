@@ -18,6 +18,7 @@ sealed class BookSearchUiState {
     data object AmbiguousSelection : BookSearchUiState()
     data object WebViewLoading : BookSearchUiState()
     data object WebViewLoaded : BookSearchUiState()
+    data class CartActionMessage(val message: String, val isError: Boolean = false) : BookSearchUiState()
 }
 
 sealed class AppScreen {
