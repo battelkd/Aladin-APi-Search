@@ -2,7 +2,15 @@
 
 Voice-first accessible ebook search app using Aladin Open API and Android WebView.
 
-현재 버전: 0.3
+현재 버전: 0.4
+
+중요: Google AI 연동을 위해 Android `applicationId`는 `app.voicebook.search`로 고정합니다. 이후 작업에서 임의로 변경하지 않습니다.
+
+## 0.4 변경 사항
+
+- 알라딘 모바일 혼합 상품 페이지에서 종이책 대신 전자책 장바구니 경로를 사용하도록 수정
+- 마이크 권한이 이미 허용된 경우 화면 오른쪽 위 권한 안내 박스를 숨기도록 수정
+- Android Studio 실행 시 사용할 앱 ID는 `app.voicebook.search`로 유지
 
 이 프로젝트는 시각 장애인이 음성으로 전자책을 검색하고, 알라딘 Open API 결과를 음성 안내로 확인한 뒤, 선택한 전자책의 알라딘 상품 페이지를 앱 내부 WebView에서 열 수 있도록 돕는 Android 전용 MVP입니다.
 

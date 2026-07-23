@@ -20,11 +20,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.jxino.aladinaccessiblebookapp"
+        // Keep this applicationId fixed for the planned Google AI integration.
+        applicationId = "app.voicebook.search"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "ALADIN_TTB_KEY", "\"${aladinTtbKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")

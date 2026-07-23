@@ -90,110 +90,70 @@ class BookWebViewController(
         val CLICK_CART_BUTTON_SCRIPT = """
             (function() {
                 try {
-                    const clickableSelector = 'a, button, input, [role="button"], area';
-                    const elementSelector = 'a, button, input, [role="button"], area, img, span, div';
-                    const cartWords = ['장바구니', '바구니', '카트', 'cart', 'basket'];
-                    const addWords = ['담기', '담아', '넣기', '넣어', '추가', 'add', 'insert'];
-                    const strongWords = [
-                        '장바구니에담기',
-                        '장바구니담기',
-                        '장바구니에넣기',
-                        '장바구니넣기',
-                        '바구니에담기',
-                        '바구니담기',
-                        '카트에담기',
-                        'addtocart',
-                        'addbasket'
-                    ];
-                    const negativeWords = [
-                        '장바구니보기',
-                        '장바구니로이동',
-                        '바구니보기',
-                        '내역',
-                        '삭제',
-                        '비우기',
-                        '주문',
-                        '결제'
-                    ];
-                    const codeCartWords = [
-                        'addbasket',
-                        'basketadd',
-                        'basket_add',
-                        'addcart',
-                        'cartadd',
-                        'add_cart'
-                    ];
-
-                    const normalize = function(value) {
-                        return String(value || '')
-                            .toLowerCase()
-                            .replace(/\s+/g, '')
-                            .trim();
+                    const absoluteHref = function(element) {
+                        const href = element && element.getAttribute ? element.getAttribute('href') : '';
+                        if (!href) return '';
+                        try {
+                            return new URL(href, window.location.href).href;
+                        } catch (error) {
+                            return href;
+                        }
                     };
-                    const attributeText = function(element) {
-                        if (!element) return '';
-                        const attrs = [
-                            element.innerText,
-                            element.textContent,
-                            element.value,
-                            element.title,
-                            element.alt,
-                            element.href,
-                            element.getAttribute && element.getAttribute('aria-label'),
-                            element.getAttribute && element.getAttribute('onclick'),
-                            element.getAttribute && element.getAttribute('class'),
-                            element.getAttribute && element.getAttribute('id')
-                        ];
-                        const childImages = element.querySelectorAll ? Array.from(element.querySelectorAll('img')) : [];
-                        childImages.forEach(function(image) {
-                            attrs.push(image.alt, image.title);
+                    const addBookFromHref = function(href) {
+                        if (!href) return '';
+                        const match = href.match(/[?&]AddBook=([^&#]+)/i);
+                        return match ? decodeURIComponent(match[1]) : '';
+                    };
+                    const isEbookAddBook = function(value) {
+                        return /^E[a-z0-9]+$/i.test(String(value || '').trim());
+                    };
+                    const ebookIsbnFromPage = function() {
+                        const hrefIsbns = Array.from(document.querySelectorAll('a[href*="AddBook="]'))
+                            .map(function(anchor) { return addBookFromHref(absoluteHref(anchor)); })
+                            .filter(isEbookAddBook);
+                        if (hrefIsbns.length > 0) return hrefIsbns[0];
+
+                        const hiddenIsbns = Array.from(document.querySelectorAll('input.hd_ISBN, input[id*="hd_ISBN"], input[name*="hd_ISBN"]'))
+                            .map(function(input) { return input.value; })
+                            .filter(isEbookAddBook);
+                        return hiddenIsbns[0] || '';
+                    };
+                    const forceEbookIsbn = function(ebookIsbn) {
+                        Array.from(document.querySelectorAll('input.hd_ISBN, input[id*="hd_ISBN"], input[name*="hd_ISBN"]')).forEach(function(input) {
+                            input.value = ebookIsbn;
                         });
-                        return attrs.filter(Boolean).join(' ');
                     };
-                    const visible = function(element) {
-                        if (!element) return false;
-                        const style = window.getComputedStyle(element);
-                        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-                            return false;
-                        }
-                        return element.getClientRects().length > 0;
-                    };
-                    const clickableOf = function(element) {
-                        if (!element) return null;
-                        if (element.matches && element.matches(clickableSelector)) return element;
-                        return element.closest ? element.closest(clickableSelector) : null;
-                    };
+                    const ebookIsbn = ebookIsbnFromPage();
+                    if (!ebookIsbn) return 'button_not_found';
+                    forceEbookIsbn(ebookIsbn);
 
-                    const candidates = [];
-                    Array.from(document.querySelectorAll(elementSelector)).forEach(function(element) {
-                        const clickable = clickableOf(element);
-                        if (!clickable || !visible(clickable)) return;
+                    // The visible mobile cart button calls CrossBasketAdd_Layer().
+                    // On mixed paper/eBook Aladin pages that function reads hd_RelationISBN
+                    // and adds the paper book, so eBook cart actions must use hd_ISBN/AddBook=E...
+                    if (typeof window.BasketAdd_Layer === 'function') {
+                        window.BasketAdd_Layer();
+                        return 'clicked';
+                    }
 
-                        const text = normalize(attributeText(element) + ' ' + attributeText(clickable));
-                        if (!text) return;
-                        if (negativeWords.some(function(word) { return text.indexOf(normalize(word)) >= 0; })) return;
+                    if (typeof window.fn_addbasket_Product_v2 === 'function') {
+                        window.fn_addbasket_Product_v2(ebookIsbn, 'False', 'False');
+                        return 'clicked';
+                    }
 
-                        const strongMatch = strongWords.some(function(word) { return text.indexOf(normalize(word)) >= 0; });
-                        const hasCartWord = cartWords.some(function(word) { return text.indexOf(normalize(word)) >= 0; });
-                        const hasAddWord = addWords.some(function(word) { return text.indexOf(normalize(word)) >= 0; });
-                        const hasCartCode = codeCartWords.some(function(word) { return text.indexOf(word) >= 0; });
+                    const exactEbookAddHref = Array.from(document.querySelectorAll('a[href*="AddBook="]'))
+                        .map(function(anchor) { return absoluteHref(anchor); })
+                        .find(function(href) {
+                            return addBookFromHref(href).toLowerCase() === ebookIsbn.toLowerCase();
+                        });
+                    if (exactEbookAddHref) {
+                        window.location.href = exactEbookAddHref;
+                        return 'clicked';
+                    }
 
-                        if (strongMatch || (hasCartWord && hasAddWord) || hasCartCode) {
-                            let score = 0;
-                            if (strongMatch) score += 30;
-                            if (hasCartWord && hasAddWord) score += 20;
-                            if (hasCartCode) score += 15;
-                            if (clickable.tagName === 'BUTTON' || clickable.tagName === 'INPUT') score += 3;
-                            candidates.push({ element: clickable, score: score });
-                        }
-                    });
-
-                    candidates.sort(function(a, b) { return b.score - a.score; });
-                    const target = candidates.length > 0 ? candidates[0].element : null;
-                    if (!target) return 'button_not_found';
-
-                    target.scrollIntoView({ block: 'center', inline: 'center' });
-                    target.click();
+                    window.location.href = new URL(
+                        '/shop/wbasket.aspx?AddBook=' + encodeURIComponent(ebookIsbn),
+                        window.location.href
+                    ).href;
                     return 'clicked';
                 } catch (error) {
                     return 'button_not_found';

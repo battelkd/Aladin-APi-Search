@@ -132,14 +132,16 @@ fun VoiceSearchScreen(
                 },
             )
 
-            PermissionAccessButton(
-                hasAudioPermission = hasAudioPermission,
-                shouldOpenAppSettings = shouldOpenAppSettingsForAudio,
-                onClick = onRequestPermission,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp),
-            )
+            if (!hasAudioPermission) {
+                PermissionAccessButton(
+                    hasAudioPermission = hasAudioPermission,
+                    shouldOpenAppSettings = shouldOpenAppSettingsForAudio,
+                    onClick = onRequestPermission,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp),
+                )
+            }
 
             if (uiState !is BookSearchUiState.Results && uiState != BookSearchUiState.WebViewLoaded) {
                 StatusBanner(
@@ -147,7 +149,11 @@ fun VoiceSearchScreen(
                     hasAudioPermission = hasAudioPermission,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(start = 12.dp, top = 12.dp, end = 144.dp)
+                        .padding(
+                            start = 12.dp,
+                            top = 12.dp,
+                            end = if (hasAudioPermission) 12.dp else 144.dp,
+                        )
                         .widthIn(max = 360.dp),
                 )
             }
